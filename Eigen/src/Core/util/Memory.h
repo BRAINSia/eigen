@@ -83,6 +83,7 @@ namespace Eigen {
 
 namespace internal {
 
+EIGEN_DEVICE_FUNC 
 inline void throw_std_bad_alloc()
 {
   #ifdef EIGEN_EXCEPTIONS
@@ -273,12 +274,12 @@ inline void* aligned_realloc(void *ptr, size_t new_size, size_t old_size)
   // The defined(_mm_free) is just here to verify that this MSVC version
   // implements _mm_malloc/_mm_free based on the corresponding _aligned_
   // functions. This may not always be the case and we just try to be safe.
-  #if defined(_MSC_VER) && defined(_mm_free)
+  #if defined(_MSC_VER) && (!defined(_WIN32_WCE)) && defined(_mm_free)
     result = _aligned_realloc(ptr,new_size,16);
   #else
     result = generic_aligned_realloc(ptr,new_size,old_size);
   #endif
-#elif defined(_MSC_VER)
+#elif defined(_MSC_VER) && (!defined(_WIN32_WCE))
   result = _aligned_realloc(ptr,new_size,16);
 #else
   result = handmade_aligned_realloc(ptr,new_size,old_size);
@@ -463,7 +464,7 @@ template<typename T, bool Align> inline void conditional_aligned_delete_auto(T *
   * There is also the variant first_aligned(const MatrixBase&) defined in DenseCoeffsBase.h.
   */
 template<typename Scalar, typename Index>
-static inline Index first_aligned(const Scalar* array, Index size)
+inline Index first_aligned(const Scalar* array, Index size)
 {
   enum { PacketSize = packet_traits<Scalar>::size,
          PacketAlignedMask = PacketSize-1
@@ -491,7 +492,7 @@ static inline Index first_aligned(const Scalar* array, Index size)
 /** \internal Returns the smallest integer multiple of \a base and greater or equal to \a size
   */ 
 template<typename Index> 
-inline static Index first_multiple(Index size, Index base)
+inline Index first_multiple(Index size, Index base)
 {
   return ((size+base-1)/base)*base;
 }
@@ -607,7 +608,7 @@ template<typename T> class aligned_stack_memory_handler
   */
 #ifdef EIGEN_ALLOCA
 
-  #ifdef __arm__
+  #if defined(__arm__) || defined(_WIN32)
     #define EIGEN_ALIGNED_ALLOCA(SIZE) reinterpret_cast<void*>((reinterpret_cast<size_t>(EIGEN_ALLOCA(SIZE+16)) & ~(size_t(15))) + 16)
   #else
     #define EIGEN_ALIGNED_ALLOCA EIGEN_ALLOCA
@@ -663,7 +664,9 @@ template<typename T> class aligned_stack_memory_handler
       /* memory allocated we can safely let the default implementation handle */ \
       /* this particular case. */ \
       static void *operator new(size_t size, void *ptr) { return ::operator new(size,ptr); } \
+      static void *operator new[](size_t size, void* ptr) { return ::operator new[](size,ptr); } \
       void operator delete(void * memory, void *ptr) throw() { return ::operator delete(memory,ptr); } \
+      void operator delete[](void * memory, void *ptr) throw() { return ::operator delete[](memory,ptr); } \
       /* nothrow-new (returns zero instead of std::bad_alloc) */ \
       EIGEN_MAKE_ALIGNED_OPERATOR_NEW_NOTHROW(NeedsToAlign) \
       void operator delete(void *ptr, const std::nothrow_t&) throw() { \
@@ -758,12 +761,11 @@ public:
         ::new( p ) T( value );
     }
 
-    // Support for c++11
 #if (__cplusplus >= 201103L)
-    template<typename... Args>
-    void  construct(pointer p, Args&&... args)
+    template <typename U, typename... Args>
+    void construct( U* u, Args&&... args)
     {
-      ::new(p) T(std::forward<Args>(args)...);
+        ::new( static_cast<void*>(u) ) U( std::forward<Args>( args )... );
     }
 #endif
 
@@ -771,6 +773,14 @@ public:
     {
         p->~T();
     }
+
+#if (__cplusplus >= 201103L)
+    template <typename U>
+    void destroy( U* u )
+    {
+        u->~U();
+    }
+#endif
 
     void deallocate( pointer p, size_type /*num*/ )
     {

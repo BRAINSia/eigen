@@ -62,18 +62,21 @@ template<typename MatrixType> class Transpose
     typedef typename TransposeImpl<MatrixType,typename internal::traits<MatrixType>::StorageKind>::Base Base;
     EIGEN_GENERIC_PUBLIC_INTERFACE(Transpose)
 
+    EIGEN_DEVICE_FUNC
     inline Transpose(MatrixType& a_matrix) : m_matrix(a_matrix) {}
 
     EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Transpose)
 
-    inline Index rows() const { return m_matrix.cols(); }
-    inline Index cols() const { return m_matrix.rows(); }
+    EIGEN_DEVICE_FUNC inline Index rows() const { return m_matrix.cols(); }
+    EIGEN_DEVICE_FUNC inline Index cols() const { return m_matrix.rows(); }
 
     /** \returns the nested expression */
+    EIGEN_DEVICE_FUNC
     const typename internal::remove_all<typename MatrixType::Nested>::type&
     nestedExpression() const { return m_matrix; }
 
     /** \returns the nested expression */
+    EIGEN_DEVICE_FUNC
     typename internal::remove_all<typename MatrixType::Nested>::type&
     nestedExpression() { return m_matrix.const_cast_derived(); }
 
@@ -106,8 +109,8 @@ template<typename MatrixType> class TransposeImpl<MatrixType,Dense>
     EIGEN_DENSE_PUBLIC_INTERFACE(Transpose<MatrixType>)
     EIGEN_INHERIT_ASSIGNMENT_OPERATORS(TransposeImpl)
 
-    inline Index innerStride() const { return derived().nestedExpression().innerStride(); }
-    inline Index outerStride() const { return derived().nestedExpression().outerStride(); }
+    EIGEN_DEVICE_FUNC inline Index innerStride() const { return derived().nestedExpression().innerStride(); }
+    EIGEN_DEVICE_FUNC inline Index outerStride() const { return derived().nestedExpression().outerStride(); }
 
     typedef typename internal::conditional<
                        internal::is_lvalue<MatrixType>::value,
@@ -118,33 +121,39 @@ template<typename MatrixType> class TransposeImpl<MatrixType,Dense>
     inline ScalarWithConstIfNotLvalue* data() { return derived().nestedExpression().data(); }
     inline const Scalar* data() const { return derived().nestedExpression().data(); }
 
+    EIGEN_DEVICE_FUNC
     inline ScalarWithConstIfNotLvalue& coeffRef(Index rowId, Index colId)
     {
       EIGEN_STATIC_ASSERT_LVALUE(MatrixType)
       return derived().nestedExpression().const_cast_derived().coeffRef(colId, rowId);
     }
 
+    EIGEN_DEVICE_FUNC
     inline ScalarWithConstIfNotLvalue& coeffRef(Index index)
     {
       EIGEN_STATIC_ASSERT_LVALUE(MatrixType)
       return derived().nestedExpression().const_cast_derived().coeffRef(index);
     }
 
+    EIGEN_DEVICE_FUNC
     inline const Scalar& coeffRef(Index rowId, Index colId) const
     {
       return derived().nestedExpression().coeffRef(colId, rowId);
     }
 
+    EIGEN_DEVICE_FUNC
     inline const Scalar& coeffRef(Index index) const
     {
       return derived().nestedExpression().coeffRef(index);
     }
 
+    EIGEN_DEVICE_FUNC
     inline CoeffReturnType coeff(Index rowId, Index colId) const
     {
       return derived().nestedExpression().coeff(colId, rowId);
     }
 
+    EIGEN_DEVICE_FUNC
     inline CoeffReturnType coeff(Index index) const
     {
       return derived().nestedExpression().coeff(index);
@@ -284,7 +293,8 @@ struct inplace_transpose_selector<MatrixType,false> { // non square matrix
   * Notice however that this method is only useful if you want to replace a matrix by its own transpose.
   * If you just need the transpose of a matrix, use transpose().
   *
-  * \note if the matrix is not square, then \c *this must be a resizable matrix.
+  * \note if the matrix is not square, then \c *this must be a resizable matrix. 
+  * This excludes (non-square) fixed-size matrices, block-expressions and maps.
   *
   * \sa transpose(), adjoint(), adjointInPlace() */
 template<typename Derived>
@@ -315,6 +325,7 @@ inline void DenseBase<Derived>::transposeInPlace()
   * If you just need the adjoint of a matrix, use adjoint().
   *
   * \note if the matrix is not square, then \c *this must be a resizable matrix.
+  * This excludes (non-square) fixed-size matrices, block-expressions and maps.
   *
   * \sa transpose(), adjoint(), transposeInPlace() */
 template<typename Derived>

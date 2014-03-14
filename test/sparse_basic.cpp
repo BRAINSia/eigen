@@ -198,6 +198,8 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
       if(j>0)
         VERIFY(j==numext::real(m3.innerVector(j).lastCoeff()));
     }
+    
+    VERIFY(m3.innerVector(j0).nonZeros() == m3.transpose().innerVector(j0).nonZeros());
 
     //m2.innerVector(j0) = 2*m2.innerVector(j1);
     //refMat2.col(j0) = 2*refMat2.col(j1);
@@ -227,6 +229,8 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
     
     VERIFY_IS_APPROX(m2, refMat2);
     
+    VERIFY(m2.innerVectors(j0,n0).nonZeros() == m2.transpose().innerVectors(j0,n0).nonZeros());
+    
     m2.innerVectors(j0,n0) = m2.innerVectors(j0,n0) + m2.innerVectors(j1,n0);
     if(SparseMatrixType::IsRowMajor)
       refMat2.middleRows(j0,n0) = (refMat2.middleRows(j0,n0) + refMat2.middleRows(j1,n0)).eval();
@@ -234,7 +238,6 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
       refMat2.middleCols(j0,n0) = (refMat2.middleCols(j0,n0) + refMat2.middleCols(j1,n0)).eval();
     
     VERIFY_IS_APPROX(m2, refMat2);
-    
   }
   
   // test basic computations
@@ -267,6 +270,14 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
       VERIFY_IS_APPROX(m1.innerVector(0).dot(refM2.row(0)), refM1.row(0).dot(refM2.row(0)));
     else
       VERIFY_IS_APPROX(m1.innerVector(0).dot(refM2.row(0)), refM1.col(0).dot(refM2.row(0)));
+    
+    DenseVector rv = DenseVector::Random(m1.cols());
+    DenseVector cv = DenseVector::Random(m1.rows());
+    Index r = internal::random<Index>(0,m1.rows()-2);
+    Index c = internal::random<Index>(0,m1.cols()-1);
+    VERIFY_IS_APPROX(( m1.template block<1,Dynamic>(r,0,1,m1.cols()).dot(rv)) , refM1.row(r).dot(rv));
+    VERIFY_IS_APPROX(m1.row(r).dot(rv), refM1.row(r).dot(rv));
+    VERIFY_IS_APPROX(m1.col(c).dot(cv), refM1.col(c).dot(cv));
 
     VERIFY_IS_APPROX(m1.conjugate(), refM1.conjugate());
     VERIFY_IS_APPROX(m1.real(), refM1.real());

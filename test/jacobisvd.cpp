@@ -84,6 +84,53 @@ void jacobisvd_solve(const MatrixType& m, unsigned int computationOptions)
   SolutionType x = svd.solve(rhs);
   // evaluate normal equation which works also for least-squares solutions
   VERIFY_IS_APPROX(m.adjoint()*m*x,m.adjoint()*rhs);
+  
+  // check minimal norm solutions
+  {
+    // generate a full-rank m x n problem with m<n
+    enum {
+      RankAtCompileTime2 = ColsAtCompileTime==Dynamic ? Dynamic : (ColsAtCompileTime)/2+1,
+      RowsAtCompileTime3 = ColsAtCompileTime==Dynamic ? Dynamic : ColsAtCompileTime+1
+    };
+    typedef Matrix<Scalar, RankAtCompileTime2, ColsAtCompileTime> MatrixType2;
+    typedef Matrix<Scalar, RankAtCompileTime2, 1> RhsType2;
+    typedef Matrix<Scalar, ColsAtCompileTime, RankAtCompileTime2> MatrixType2T;
+    Index rank = RankAtCompileTime2==Dynamic ? internal::random<Index>(1,cols) : Index(RankAtCompileTime2);
+    MatrixType2 m2(rank,cols);
+    int guard = 0;
+    do {
+      m2.setRandom();
+    } while(m2.jacobiSvd().setThreshold(test_precision<Scalar>()).rank()!=rank && (++guard)<10);
+    VERIFY(guard<10);
+    RhsType2 rhs2 = RhsType2::Random(rank);
+    // use QR to find a reference minimal norm solution
+    HouseholderQR<MatrixType2T> qr(m2.adjoint());
+    Matrix<Scalar,Dynamic,1> tmp = qr.matrixQR().topLeftCorner(rank,rank).template triangularView<Upper>().adjoint().solve(rhs2);
+    tmp.conservativeResize(cols);
+    tmp.tail(cols-rank).setZero();
+    SolutionType x21 = qr.householderQ() * tmp;
+    // now check with SVD
+    JacobiSVD<MatrixType2, ColPivHouseholderQRPreconditioner> svd2(m2, computationOptions);
+    SolutionType x22 = svd2.solve(rhs2);
+    VERIFY_IS_APPROX(m2*x21, rhs2);
+    VERIFY_IS_APPROX(m2*x22, rhs2);
+    VERIFY_IS_APPROX(x21, x22);
+    
+    // Now check with a rank deficient matrix
+    typedef Matrix<Scalar, RowsAtCompileTime3, ColsAtCompileTime> MatrixType3;
+    typedef Matrix<Scalar, RowsAtCompileTime3, 1> RhsType3;
+    Index rows3 = RowsAtCompileTime3==Dynamic ? internal::random<Index>(rank+1,2*cols) : Index(RowsAtCompileTime3);
+    Matrix<Scalar,RowsAtCompileTime3,Dynamic> C = Matrix<Scalar,RowsAtCompileTime3,Dynamic>::Random(rows3,rank);
+    MatrixType3 m3 = C * m2;
+    RhsType3 rhs3 = C * rhs2;
+    JacobiSVD<MatrixType3, ColPivHouseholderQRPreconditioner> svd3(m3, computationOptions);
+    SolutionType x3 = svd3.solve(rhs3);
+    VERIFY_IS_APPROX(m3*x3, rhs3);
+    VERIFY_IS_APPROX(m3*x21, rhs3);
+    VERIFY_IS_APPROX(m2*x3, rhs2);
+    
+    VERIFY_IS_APPROX(x21, x3);
+  }
 }
 
 template<typename MatrixType, int QRPreconditioner>
@@ -238,7 +285,7 @@ void jacobisvd_inf_nan()
 
 // Regression test for bug 286: JacobiSVD loops indefinitely with some
 // matrices containing denormal numbers.
-void jacobisvd_bug286()
+void jacobisvd_underoverflow()
 {
 #if defined __INTEL_COMPILER
 // shut up warning #239: floating point underflow
@@ -253,6 +300,15 @@ void jacobisvd_bug286()
 #endif
   JacobiSVD<Matrix2d> svd;
   svd.compute(M); // just check we don't loop indefinitely
+  
+  // Check for overflow:
+  Matrix3d M3;
+  M3 << 4.4331978442502944e+307, -5.8585363752028680e+307,  6.4527017443412964e+307,
+        3.7841695601406358e+307,  2.4331702789740617e+306, -3.5235707140272905e+307,
+       -8.7190887618028355e+307, -7.3453213709232193e+307, -2.4367363684472105e+307;
+
+  JacobiSVD<Matrix3d> svd3;
+  svd3.compute(M3); // just check we don't loop indefinitely
 }
 
 void jacobisvd_preallocate()
@@ -351,5 +407,5 @@ void test_jacobisvd()
   CALL_SUBTEST_9( jacobisvd_preallocate() );
 
   // Regression check for bug 286
-  CALL_SUBTEST_2( jacobisvd_bug286() );
+  CALL_SUBTEST_2( jacobisvd_underoverflow() );
 }

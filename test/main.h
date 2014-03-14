@@ -138,7 +138,7 @@ namespace Eigen
         Eigen::internal::push_assert = false;                                                \
       }
 
-  #else // EIGEN_DEBUG_ASSERTS
+  #elif !defined(__CUDACC__) // EIGEN_DEBUG_ASSERTS
     // see bug 89. The copy_bool here is working around a bug in gcc <= 4.3
     #define eigen_assert(a) \
       if( (!Eigen::internal::copy_bool(a)) && (!no_more_assert) )\
@@ -162,7 +162,9 @@ namespace Eigen
 
   #endif // EIGEN_DEBUG_ASSERTS
 
+  #if !defined(__CUDACC__)
   #define EIGEN_USE_CUSTOM_ASSERT
+  #endif
 
 #else // EIGEN_NO_ASSERTION_CHECKING
 
@@ -238,6 +240,7 @@ inline bool test_isMuchSmallerThan(const double& a, const double& b)
 inline bool test_isApproxOrLessThan(const double& a, const double& b)
 { return internal::isApproxOrLessThan(a, b, test_precision<double>()); }
 
+#ifndef EIGEN_TEST_NO_COMPLEX
 inline bool test_isApprox(const std::complex<float>& a, const std::complex<float>& b)
 { return internal::isApprox(a, b, test_precision<std::complex<float> >()); }
 inline bool test_isMuchSmallerThan(const std::complex<float>& a, const std::complex<float>& b)
@@ -247,7 +250,9 @@ inline bool test_isApprox(const std::complex<double>& a, const std::complex<doub
 { return internal::isApprox(a, b, test_precision<std::complex<double> >()); }
 inline bool test_isMuchSmallerThan(const std::complex<double>& a, const std::complex<double>& b)
 { return internal::isMuchSmallerThan(a, b, test_precision<std::complex<double> >()); }
+#endif
 
+#ifndef EIGEN_TEST_NO_LONGDOUBLE
 inline bool test_isApprox(const long double& a, const long double& b)
 {
     bool ret = internal::isApprox(a, b, test_precision<long double>());
@@ -261,11 +266,18 @@ inline bool test_isMuchSmallerThan(const long double& a, const long double& b)
 { return internal::isMuchSmallerThan(a, b, test_precision<long double>()); }
 inline bool test_isApproxOrLessThan(const long double& a, const long double& b)
 { return internal::isApproxOrLessThan(a, b, test_precision<long double>()); }
+#endif // EIGEN_TEST_NO_LONGDOUBLE
 
 template<typename Type1, typename Type2>
 inline bool test_isApprox(const Type1& a, const Type2& b)
 {
+#ifdef EIGEN_TEST_EVALUATORS
+  typename internal::eval<Type1>::type a_eval(a);
+  typename internal::eval<Type2>::type b_eval(b);
+  return a_eval.isApprox(b_eval, test_precision<typename Type1::Scalar>());
+#else
   return a.isApprox(b, test_precision<typename Type1::Scalar>());
+#endif
 }
 
 // The idea behind this function is to compare the two scalars a and b where

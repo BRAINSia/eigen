@@ -74,68 +74,13 @@ struct evaluator<const T>
 
 // ---------- base class for all writable evaluators ----------
 
+// TODO this class does not seem to be necessary anymore
 template<typename ExpressionType>
 struct evaluator_impl_base
 {
   typedef typename ExpressionType::Index Index;
-
-  template<typename OtherEvaluatorType>
-  void copyCoeff(Index row, Index col, const OtherEvaluatorType& other)
-  {
-    derived().coeffRef(row, col) = other.coeff(row, col);
-  }
-
-  template<typename OtherEvaluatorType>
-  void copyCoeffByOuterInner(Index outer, Index inner, const OtherEvaluatorType& other)
-  {
-    Index row = rowIndexByOuterInner(outer, inner); 
-    Index col = colIndexByOuterInner(outer, inner); 
-    derived().copyCoeff(row, col, other);
-  }
-
-  template<typename OtherEvaluatorType>
-  void copyCoeff(Index index, const OtherEvaluatorType& other)
-  {
-    derived().coeffRef(index) = other.coeff(index);
-  }
-
-  template<int StoreMode, int LoadMode, typename OtherEvaluatorType>
-  void copyPacket(Index row, Index col, const OtherEvaluatorType& other)
-  {
-    derived().template writePacket<StoreMode>(row, col, 
-      other.template packet<LoadMode>(row, col));
-  }
-
-  template<int StoreMode, int LoadMode, typename OtherEvaluatorType>
-  void copyPacketByOuterInner(Index outer, Index inner, const OtherEvaluatorType& other)
-  {
-    Index row = rowIndexByOuterInner(outer, inner); 
-    Index col = colIndexByOuterInner(outer, inner); 
-    derived().template copyPacket<StoreMode, LoadMode>(row, col, other);
-  }
-
-  template<int StoreMode, int LoadMode, typename OtherEvaluatorType>
-  void copyPacket(Index index, const OtherEvaluatorType& other)
-  {
-    derived().template writePacket<StoreMode>(index, 
-      other.template packet<LoadMode>(index));
-  }
-
-  Index rowIndexByOuterInner(Index outer, Index inner) const
-  {
-    return int(ExpressionType::RowsAtCompileTime) == 1 ? 0
-      : int(ExpressionType::ColsAtCompileTime) == 1 ? inner
-      : int(ExpressionType::Flags)&RowMajorBit ? outer
-      : inner;
-  }
-
-  Index colIndexByOuterInner(Index outer, Index inner) const
-  {
-    return int(ExpressionType::ColsAtCompileTime) == 1 ? 0
-      : int(ExpressionType::RowsAtCompileTime) == 1 ? inner
-      : int(ExpressionType::Flags)&RowMajorBit ? inner
-      : outer;
-  }
+  // TODO that's not very nice to have to propagate all these traits. They are currently only needed to handle outer,inner indices.
+  typedef traits<ExpressionType> ExpressionTraits;
 
   evaluator_impl<ExpressionType>& derived() 
   {
@@ -233,9 +178,9 @@ protected:
   const Scalar *m_data;
 
   // We do not need to know the outer stride for vectors
-  variable_if_dynamic<Index, IsVectorAtCompileTime ? 0 
-		             : int(IsRowMajor) ? ColsAtCompileTime 
-		             : RowsAtCompileTime> m_outerStride;
+  variable_if_dynamic<Index, IsVectorAtCompileTime  ? 0 
+                                                    : int(IsRowMajor) ? ColsAtCompileTime 
+                                                    : RowsAtCompileTime> m_outerStride;
 };
 
 template<typename Scalar, int Rows, int Cols, int Options, int MaxRows, int MaxCols>
@@ -307,15 +252,17 @@ struct evaluator_impl<EvalToTemp<ArgType> >
 
   evaluator_impl(const XprType& xpr) 
     : m_result(xpr.rows(), xpr.cols()), m_resultImpl(m_result)
-  { 
-    copy_using_evaluator_without_resizing(m_result, xpr.arg());
+  {
+    // TODO we should simply do m_result(xpr.arg());
+    call_dense_assignment_loop(m_result, xpr.arg());
   }
 
   // This constructor is used when nesting an EvalTo evaluator in another evaluator
   evaluator_impl(const ArgType& arg) 
     : m_result(arg.rows(), arg.cols()), m_resultImpl(m_result)
-  { 
-    copy_using_evaluator_without_resizing(m_result, arg);
+  {
+    // TODO we should simply do m_result(xpr.arg());
+    call_dense_assignment_loop(m_result, arg);
   }
 
   typedef typename PlainObject::Index Index;
@@ -1166,143 +1113,6 @@ private:
   EIGEN_STRONG_INLINE Index rowOffset() const { return m_index.value() > 0 ? 0 : -m_index.value(); }
   EIGEN_STRONG_INLINE Index colOffset() const { return m_index.value() > 0 ? m_index.value() : 0; }
 };
-
-
-// ---------- SwapWrapper ----------
-
-template<typename ArgType>
-struct evaluator_impl<SwapWrapper<ArgType> >
-  : evaluator_impl_base<SwapWrapper<ArgType> >
-{
-  typedef SwapWrapper<ArgType> XprType;
-
-  evaluator_impl(const XprType& swapWrapper) 
-    : m_argImpl(swapWrapper.expression())
-  { }
- 
-  typedef typename XprType::Index Index;
-  typedef typename XprType::Scalar Scalar;
-  typedef typename XprType::Packet Packet;
-
-  // This function and the next one are needed by assign to correctly align loads/stores
-  // TODO make Assign use .data()
-  Scalar& coeffRef(Index row, Index col)
-  {
-    return m_argImpl.coeffRef(row, col);
-  }
-  
-  inline Scalar& coeffRef(Index index)
-  {
-    return m_argImpl.coeffRef(index);
-  }
-
-  template<typename OtherEvaluatorType>
-  void copyCoeff(Index row, Index col, const OtherEvaluatorType& other)
-  {
-    OtherEvaluatorType& nonconst_other = const_cast<OtherEvaluatorType&>(other);
-    Scalar tmp = m_argImpl.coeff(row, col);
-    m_argImpl.coeffRef(row, col) = nonconst_other.coeff(row, col);
-    nonconst_other.coeffRef(row, col) = tmp;
-  }
-
-  template<typename OtherEvaluatorType>
-  void copyCoeff(Index index, const OtherEvaluatorType& other)
-  {
-    OtherEvaluatorType& nonconst_other = const_cast<OtherEvaluatorType&>(other);
-    Scalar tmp = m_argImpl.coeff(index);
-    m_argImpl.coeffRef(index) = nonconst_other.coeff(index);
-    nonconst_other.coeffRef(index) = tmp;
-  }
-
-  template<int StoreMode, int LoadMode, typename OtherEvaluatorType>
-  void copyPacket(Index row, Index col, const OtherEvaluatorType& other)
-  {
-    OtherEvaluatorType& nonconst_other = const_cast<OtherEvaluatorType&>(other);
-    Packet tmp = m_argImpl.template packet<StoreMode>(row, col);
-    m_argImpl.template writePacket<StoreMode>
-      (row, col, nonconst_other.template packet<LoadMode>(row, col));
-    nonconst_other.template writePacket<LoadMode>(row, col, tmp);
-  }
-
-  template<int StoreMode, int LoadMode, typename OtherEvaluatorType>
-  void copyPacket(Index index, const OtherEvaluatorType& other)
-  {
-    OtherEvaluatorType& nonconst_other = const_cast<OtherEvaluatorType&>(other);
-    Packet tmp = m_argImpl.template packet<StoreMode>(index);
-    m_argImpl.template writePacket<StoreMode>
-      (index, nonconst_other.template packet<LoadMode>(index));
-    nonconst_other.template writePacket<LoadMode>(index, tmp);
-  }
-
-protected:
-  typename evaluator<ArgType>::nestedType m_argImpl;
-};
-
-
-// ---------- SelfCwiseBinaryOp ----------
-
-template<typename BinaryOp, typename LhsXpr, typename RhsXpr>
-struct evaluator_impl<SelfCwiseBinaryOp<BinaryOp, LhsXpr, RhsXpr> >
-  : evaluator_impl_base<SelfCwiseBinaryOp<BinaryOp, LhsXpr, RhsXpr> >
-{
-  typedef SelfCwiseBinaryOp<BinaryOp, LhsXpr, RhsXpr> XprType;
-
-  evaluator_impl(const XprType& selfCwiseBinaryOp) 
-    : m_argImpl(selfCwiseBinaryOp.expression()),
-      m_functor(selfCwiseBinaryOp.functor())
-  { }
- 
-  typedef typename XprType::Index Index;
-  typedef typename XprType::Scalar Scalar;
-  typedef typename XprType::Packet Packet;
-
-  // This function and the next one are needed by assign to correctly align loads/stores
-  // TODO make Assign use .data()
-  Scalar& coeffRef(Index row, Index col)
-  {
-    return m_argImpl.coeffRef(row, col);
-  }
-  
-  inline Scalar& coeffRef(Index index)
-  {
-    return m_argImpl.coeffRef(index);
-  }
-
-  template<typename OtherEvaluatorType>
-  void copyCoeff(Index row, Index col, const OtherEvaluatorType& other)
-  {
-    Scalar& tmp = m_argImpl.coeffRef(row, col);
-    tmp = m_functor(tmp, other.coeff(row, col));
-  }
-
-  template<typename OtherEvaluatorType>
-  void copyCoeff(Index index, const OtherEvaluatorType& other)
-  {
-    Scalar& tmp = m_argImpl.coeffRef(index);
-    tmp = m_functor(tmp, other.coeff(index));
-  }
-
-  template<int StoreMode, int LoadMode, typename OtherEvaluatorType>
-  void copyPacket(Index row, Index col, const OtherEvaluatorType& other)
-  {
-    const Packet res = m_functor.packetOp(m_argImpl.template packet<StoreMode>(row, col),
-					  other.template packet<LoadMode>(row, col));
-    m_argImpl.template writePacket<StoreMode>(row, col, res);
-  }
-
-  template<int StoreMode, int LoadMode, typename OtherEvaluatorType>
-  void copyPacket(Index index, const OtherEvaluatorType& other)
-  {
-    const Packet res = m_functor.packetOp(m_argImpl.template packet<StoreMode>(index),
-					  other.template packet<LoadMode>(index));
-    m_argImpl.template writePacket<StoreMode>(index, res);
-  }
-
-protected:
-  typename evaluator<LhsXpr>::nestedType m_argImpl;
-  const BinaryOp m_functor;
-};
-
 
 } // namespace internal
 

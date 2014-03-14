@@ -18,6 +18,7 @@
   * \sa class CwiseBinaryOp, cwiseAbs2
   */
 template<typename OtherDerived>
+EIGEN_DEVICE_FUNC
 EIGEN_STRONG_INLINE const EIGEN_CWISE_PRODUCT_RETURN_TYPE(Derived,OtherDerived)
 cwiseProduct(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const
 {
@@ -37,6 +38,7 @@ cwiseProduct(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const
   * \sa cwiseNotEqual(), isApprox(), isMuchSmallerThan()
   */
 template<typename OtherDerived>
+EIGEN_DEVICE_FUNC
 inline const CwiseBinaryOp<std::equal_to<Scalar>, const Derived, const OtherDerived>
 cwiseEqual(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const
 {
@@ -56,6 +58,7 @@ cwiseEqual(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const
   * \sa cwiseEqual(), isApprox(), isMuchSmallerThan()
   */
 template<typename OtherDerived>
+EIGEN_DEVICE_FUNC
 inline const CwiseBinaryOp<std::not_equal_to<Scalar>, const Derived, const OtherDerived>
 cwiseNotEqual(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const
 {
@@ -70,6 +73,7 @@ cwiseNotEqual(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const
   * \sa class CwiseBinaryOp, max()
   */
 template<typename OtherDerived>
+EIGEN_DEVICE_FUNC
 EIGEN_STRONG_INLINE const CwiseBinaryOp<internal::scalar_min_op<Scalar>, const Derived, const OtherDerived>
 cwiseMin(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const
 {
@@ -80,10 +84,11 @@ cwiseMin(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const
   *
   * \sa class CwiseBinaryOp, min()
   */
+EIGEN_DEVICE_FUNC
 EIGEN_STRONG_INLINE const CwiseBinaryOp<internal::scalar_min_op<Scalar>, const Derived, const ConstantReturnType>
 cwiseMin(const Scalar &other) const
 {
-  return cwiseMin(Derived::PlainObject::Constant(rows(), cols(), other));
+  return cwiseMin(Derived::Constant(rows(), cols(), other));
 }
 
 /** \returns an expression of the coefficient-wise max of *this and \a other
@@ -94,6 +99,7 @@ cwiseMin(const Scalar &other) const
   * \sa class CwiseBinaryOp, min()
   */
 template<typename OtherDerived>
+EIGEN_DEVICE_FUNC
 EIGEN_STRONG_INLINE const CwiseBinaryOp<internal::scalar_max_op<Scalar>, const Derived, const OtherDerived>
 cwiseMax(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const
 {
@@ -104,10 +110,11 @@ cwiseMax(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const
   *
   * \sa class CwiseBinaryOp, min()
   */
+EIGEN_DEVICE_FUNC
 EIGEN_STRONG_INLINE const CwiseBinaryOp<internal::scalar_max_op<Scalar>, const Derived, const ConstantReturnType>
 cwiseMax(const Scalar &other) const
 {
-  return cwiseMax(Derived::PlainObject::Constant(rows(), cols(), other));
+  return cwiseMax(Derived::Constant(rows(), cols(), other));
 }
 
 
@@ -119,6 +126,7 @@ cwiseMax(const Scalar &other) const
   * \sa class CwiseBinaryOp, cwiseProduct(), cwiseInverse()
   */
 template<typename OtherDerived>
+EIGEN_DEVICE_FUNC
 EIGEN_STRONG_INLINE const CwiseBinaryOp<internal::scalar_quotient_op<Scalar>, const Derived, const OtherDerived>
 cwiseQuotient(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const
 {

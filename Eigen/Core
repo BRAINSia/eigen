@@ -14,6 +14,34 @@
 // first thing Eigen does: stop the compiler from committing suicide
 #include "src/Core/util/DisableStupidWarnings.h"
 
+// Handle NVCC/CUDA
+#ifdef __CUDACC__
+  // Do not try asserts on CUDA!
+  #ifndef EIGEN_NO_DEBUG
+  #define EIGEN_NO_DEBUG
+  #endif
+
+  #ifdef EIGEN_INTERNAL_DEBUGGING
+  #undef EIGEN_INTERNAL_DEBUGGING
+  #endif
+  
+  // Do not try to vectorize on CUDA!
+  #define EIGEN_DONT_VECTORIZE
+  
+  // All functions callable from CUDA code must be qualified with __device__
+  #define EIGEN_DEVICE_FUNC __host__ __device__
+  
+#else
+  #define EIGEN_DEVICE_FUNC
+  
+#endif
+
+#if defined(__CUDA_ARCH__)
+  #define EIGEN_USING_STD_MATH(FUNC) using ::FUNC;
+#else
+  #define EIGEN_USING_STD_MATH(FUNC) using std::FUNC;
+#endif
+
 // then include this file where all our macros are defined. It's really important to do it first because
 // it's where we do all the alignment settings (platform detection and honoring the user's will if he
 // defined e.g. EIGEN_DONT_ALIGN) so it needs to be done before we do anything with vectorization.
@@ -169,7 +197,7 @@
   #include <intrin.h>
 #endif
 
-#if defined(_CPPUNWIND) || defined(__EXCEPTIONS)
+#if (defined(_CPPUNWIND) || defined(__EXCEPTIONS)) && !defined(__CUDA_ARCH__)
   #define EIGEN_EXCEPTIONS
 #endif
 
@@ -273,11 +301,23 @@ using std::ptrdiff_t;
 
 #include "src/Core/arch/Default/Settings.h"
 
-#include "src/Core/Functors.h"
+#include "src/Core/functors/BinaryFunctors.h"
+#include "src/Core/functors/UnaryFunctors.h"
+#include "src/Core/functors/NullaryFunctors.h"
+#include "src/Core/functors/StlFunctors.h"
+
 #include "src/Core/DenseCoeffsBase.h"
 #include "src/Core/DenseBase.h"
 #include "src/Core/MatrixBase.h"
 #include "src/Core/EigenBase.h"
+
+#ifdef EIGEN_ENABLE_EVALUATORS
+#include "src/Core/functors/AssignmentFunctors.h"
+#include "src/Core/Product.h"
+#include "src/Core/CoreEvaluators.h"
+#include "src/Core/AssignEvaluator.h"
+#include "src/Core/ProductEvaluators.h"
+#endif
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN // work around Doxygen bug triggered by Assign.h r814874
                                 // at least confirmed with Doxygen 1.5.5 and 1.5.6
@@ -349,13 +389,6 @@ using std::ptrdiff_t;
 #include "src/Core/Replicate.h"
 #include "src/Core/Reverse.h"
 #include "src/Core/ArrayWrapper.h"
-
-#ifdef EIGEN_ENABLE_EVALUATORS
-#include "src/Core/Product.h"
-#include "src/Core/CoreEvaluators.h"
-#include "src/Core/AssignEvaluator.h"
-#include "src/Core/ProductEvaluators.h"
-#endif
 
 #ifdef EIGEN_USE_BLAS
 #include "src/Core/products/GeneralMatrixMatrix_MKL.h"
